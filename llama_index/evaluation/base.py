@@ -1,6 +1,8 @@
 """Evaluating the responses from an index."""
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import List, Optional
 
 from llama_index.indices.base import ServiceContext
@@ -8,6 +10,29 @@ from llama_index.indices.list.base import GPTListIndex
 from llama_index.prompts.prompts import QuestionAnswerPrompt, RefinePrompt
 from llama_index.readers.schema.base import Document
 from llama_index.response.schema import Response
+
+
+@dataclass
+class Evaluation:
+    passing: bool = False  # True if the response is correct, False otherwise
+    feedback: str = ""  # Feedback for the response
+
+
+class BaseEvaluator(ABC):
+    def __init__(self, service_context: Optional[ServiceContext] = None) -> None:
+        """Base class for evaluating responses"""
+        self.service_context = service_context or ServiceContext.from_defaults()
+
+    @abstractmethod
+    def evaluate_response(self, query: str, response: Response) -> Evaluation:
+        """Evaluate the response for a query and return an Evaluation."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def evaluate(self, query: str, response: Response) -> str:
+        """Evaluate the response for a query."""
+        raise NotImplementedError
+
 
 DEFAULT_EVAL_PROMPT = (
     "Please tell if a given piece of information "
@@ -201,7 +226,7 @@ class ResponseEvaluator:
         return response_texts
 
 
-class QueryResponseEvaluator:
+class QueryResponseEvaluator(BaseEvaluator):
     """Evaluate based on query and response from indices.
 
     NOTE: this is a beta feature, subject to change!
@@ -217,7 +242,7 @@ class QueryResponseEvaluator:
         raise_error: bool = False,
     ) -> None:
         """Init params."""
-        self.service_context = service_context or ServiceContext.from_defaults()
+        super().__init__(service_context)
         self.raise_error = raise_error
 
     def get_context(self, response: Response) -> List[Document]:
@@ -337,3 +362,11 @@ class QueryResponseEvaluator:
             response_texts.append(response_txt)
 
         return response_texts
+
+    def evaluate_response(self, query: str, response: Response) -> Evaluation:
+        """Return the evaluation."""
+        eval = self.evaluate(query, response)
+        if eval == "YES":
+            return Evaluation(True, "The response is good.")
+        else:
+            return Evaluation(False, "The response is bad.")
