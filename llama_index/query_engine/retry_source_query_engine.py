@@ -1,5 +1,7 @@
 import logging
 
+from typing import Optional
+from llama_index.callbacks.base import CallbackManager
 from llama_index.evaluation.base import QueryResponseEvaluator
 from llama_index.indices.list.base import GPTListIndex
 from llama_index.indices.query.base import BaseQueryEngine
@@ -19,11 +21,13 @@ class RetrySourceQueryEngine(BaseQueryEngine):
         query_engine: RetrieverQueryEngine,
         evaluator: QueryResponseEvaluator,
         max_retries: int = 3,
+        callback_manager: Optional[CallbackManager] = None,
     ) -> None:
         """Run a BaseQueryEngine with retries."""
         self._query_engine = query_engine
         self._evaluator = evaluator
         self.max_retries = max_retries
+        super().__init__(callback_manager)
 
     def _query(self, query_bundle: QueryBundle) -> RESPONSE_TYPE:
         response = self._query_engine._query(query_bundle)
