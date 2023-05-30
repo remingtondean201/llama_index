@@ -14,6 +14,8 @@ from llama_index.response.schema import Response
 
 @dataclass
 class Evaluation:
+    query: str  # The query
+    response: Response  # The response
     passing: bool = False  # True if the response is correct, False otherwise
     feedback: str = ""  # Feedback for the response
 
@@ -26,11 +28,6 @@ class BaseEvaluator(ABC):
     @abstractmethod
     def evaluate_response(self, query: str, response: Response) -> Evaluation:
         """Evaluate the response for a query and return an Evaluation."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def evaluate(self, query: str, response: Response) -> str:
-        """Evaluate the response for a query."""
         raise NotImplementedError
 
 
@@ -274,13 +271,23 @@ class QueryResponseEvaluator(BaseEvaluator):
             No -> If answer, context information are not matching \
                     or If Query, answer and context information are not matching.
         """
+        return self.evaluate_response(query, response).feedback
+
+    def evaluate_response(self, query: str, response: Response) -> Evaluation:
+        """Evaluate the response from an index.
+
+        Args:
+            query: Query for which response is generated from index.
+            response: Response object from an index based on the query.
+        Returns:
+            Evaluation object with passing boolean and feedback "YES" or "NO".
+        """
         answer = str(response)
 
         context = self.get_context(response)
         index = GPTListIndex.from_documents(
             context, service_context=self.service_context
         )
-        response_txt = ""
 
         QUERY_RESPONSE_EVAL_PROMPT_TMPL = QuestionAnswerPrompt(
             QUERY_RESPONSE_EVAL_PROMPT
@@ -298,13 +305,11 @@ class QueryResponseEvaluator(BaseEvaluator):
         raw_response_txt = str(response_obj)
 
         if "yes" in raw_response_txt.lower():
-            response_txt = "YES"
+            return Evaluation(query, response, True, "YES")
         else:
-            response_txt = "NO"
             if self.raise_error:
                 raise ValueError("The response is invalid")
-
-        return response_txt
+            return Evaluation(query, response, False, "NO")
 
     def evaluate_source_nodes(self, query: str, response: Response) -> List[str]:
         """Function to evaluate if each source node contains the answer \
@@ -362,11 +367,3 @@ class QueryResponseEvaluator(BaseEvaluator):
             response_texts.append(response_txt)
 
         return response_texts
-
-    def evaluate_response(self, query: str, response: Response) -> Evaluation:
-        """Return the evaluation."""
-        eval = self.evaluate(query, response)
-        if eval == "YES":
-            return Evaluation(True, "The response is good.")
-        else:
-            return Evaluation(False, "The response is bad.")
